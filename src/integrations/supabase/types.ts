@@ -14,7 +14,247 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      carbon_tracking: {
+        Row: {
+          bill_url: string | null
+          carbon_emissions: number | null
+          created_at: string | null
+          electricity_units: number | null
+          id: string
+          manual_units_input: boolean | null
+          month_year: string | null
+          points_earned: number | null
+          state: string | null
+          user_id: string
+        }
+        Insert: {
+          bill_url?: string | null
+          carbon_emissions?: number | null
+          created_at?: string | null
+          electricity_units?: number | null
+          id?: string
+          manual_units_input?: boolean | null
+          month_year?: string | null
+          points_earned?: number | null
+          state?: string | null
+          user_id: string
+        }
+        Update: {
+          bill_url?: string | null
+          carbon_emissions?: number | null
+          created_at?: string | null
+          electricity_units?: number | null
+          id?: string
+          manual_units_input?: boolean | null
+          month_year?: string | null
+          points_earned?: number | null
+          state?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "carbon_tracking_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      certificates: {
+        Row: {
+          certificate_type: string
+          certificate_url: string
+          id: string
+          issue_date: string | null
+          reference_id: string | null
+          user_id: string
+        }
+        Insert: {
+          certificate_type: string
+          certificate_url: string
+          id?: string
+          issue_date?: string | null
+          reference_id?: string | null
+          user_id: string
+        }
+        Update: {
+          certificate_type?: string
+          certificate_url?: string
+          id?: string
+          issue_date?: string | null
+          reference_id?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "certificates_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ewaste_requests: {
+        Row: {
+          address: string
+          certificate_url: string | null
+          created_at: string | null
+          id: string
+          item_type: string
+          pickup_date: string
+          quantity: number
+          status: Database["public"]["Enums"]["ewaste_status"] | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          address: string
+          certificate_url?: string | null
+          created_at?: string | null
+          id?: string
+          item_type: string
+          pickup_date: string
+          quantity: number
+          status?: Database["public"]["Enums"]["ewaste_status"] | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          address?: string
+          certificate_url?: string | null
+          created_at?: string | null
+          id?: string
+          item_type?: string
+          pickup_date?: string
+          quantity?: number
+          status?: Database["public"]["Enums"]["ewaste_status"] | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ewaste_requests_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string | null
+          id: string
+          message: string
+          read: boolean | null
+          title: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          message: string
+          read?: boolean | null
+          title: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          message?: string
+          read?: boolean | null
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          address: string | null
+          company_name: string | null
+          created_at: string | null
+          email: string | null
+          full_name: string | null
+          id: string
+          phone: string | null
+          updated_at: string | null
+          user_type: Database["public"]["Enums"]["user_type"]
+        }
+        Insert: {
+          address?: string | null
+          company_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id: string
+          phone?: string | null
+          updated_at?: string | null
+          user_type?: Database["public"]["Enums"]["user_type"]
+        }
+        Update: {
+          address?: string | null
+          company_name?: string | null
+          created_at?: string | null
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          phone?: string | null
+          updated_at?: string | null
+          user_type?: Database["public"]["Enums"]["user_type"]
+        }
+        Relationships: []
+      }
+      user_points: {
+        Row: {
+          carbon_saved: number | null
+          certificates_earned: number | null
+          created_at: string | null
+          id: string
+          pickups_completed: number | null
+          total_points: number | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          carbon_saved?: number | null
+          certificates_earned?: number | null
+          created_at?: string | null
+          id?: string
+          pickups_completed?: number | null
+          total_points?: number | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          carbon_saved?: number | null
+          certificates_earned?: number | null
+          created_at?: string | null
+          id?: string
+          pickups_completed?: number | null
+          total_points?: number | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_points_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -23,7 +263,8 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      ewaste_status: "pending" | "completed"
+      user_type: "public" | "mnc"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +391,9 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      ewaste_status: ["pending", "completed"],
+      user_type: ["public", "mnc"],
+    },
   },
 } as const

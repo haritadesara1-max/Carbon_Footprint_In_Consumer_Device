@@ -3,11 +3,21 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { TrendingDown, Upload, Award } from "lucide-react";
 import { carbonTrackingSchema } from "@/lib/validation";
+
+const INDIAN_STATES = [
+  'Andhra Pradesh', 'Arunachal Pradesh', 'Assam', 'Bihar', 'Chhattisgarh',
+  'Goa', 'Gujarat', 'Haryana', 'Himachal Pradesh', 'Jharkhand',
+  'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
+  'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
+  'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
+  'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'India'
+];
 
 interface CarbonTrackerSectionProps {
   isMNC: boolean;
@@ -21,6 +31,8 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [monthYear, setMonthYear] = useState("");
+  const [state, setState] = useState("India");
+  const [manualUnits, setManualUnits] = useState("");
 
   useEffect(() => {
     fetchRecords();
@@ -50,11 +62,20 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !file) {
+    if (!user) {
       toast({
         variant: "destructive",
         title: "Missing information",
-        description: "Please select a bill file and enter month/year."
+        description: "Please log in to continue."
+      });
+      return;
+    }
+
+    if (!file && !manualUnits) {
+      toast({
+        variant: "destructive",
+        title: "Missing information",
+        description: "Please upload a bill or enter units manually."
       });
       return;
     }
@@ -63,7 +84,7 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
     try {
       carbonTrackingSchema.parse({
         monthYear,
-        file
+        file: file || undefined
       });
     } catch (error: any) {
       toast({
@@ -77,25 +98,34 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
     setLoading(true);
     
     try {
-      // Upload bill to storage
-      const fileName = `${user.id}/${Date.now()}_${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('bills')
-        .upload(fileName, file);
+      let billUrl = '';
+      
+      // Upload bill to storage if file provided
+      if (file) {
+        const fileName = `${user.id}/${Date.now()}_${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('bills')
+          .upload(fileName, file);
 
-      if (uploadError) throw uploadError;
+        if (uploadError) throw uploadError;
 
-      // Get signed URL with 1 year expiration
-      const { data: signedData, error: signedError } = await supabase.storage
-        .from('bills')
-        .createSignedUrl(fileName, 31536000); // 1 year
+        // Get signed URL with 1 year expiration
+        const { data: signedData, error: signedError } = await supabase.storage
+          .from('bills')
+          .createSignedUrl(fileName, 31536000); // 1 year
 
-      if (signedError) throw signedError;
-      const billUrl = signedData.signedUrl;
+        if (signedError) throw signedError;
+        billUrl = signedData.signedUrl;
+      }
 
       // Process bill with edge function
       const { data, error: funcError } = await supabase.functions.invoke('process-bill', {
-        body: { billUrl, monthYear }
+        body: { 
+          billUrl, 
+          monthYear,
+          state,
+          manualUnits: manualUnits ? parseFloat(manualUnits) : null
+        }
       });
 
       if (funcError) throw funcError;
@@ -110,11 +140,13 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
         .from('carbon_tracking')
         .insert({
           user_id: user.id,
-          bill_url: billUrl,
+          bill_url: billUrl || null,
           electricity_units: data.electricity_units,
           carbon_emissions: carbonEmissions,
           points_earned: pointsEarned,
-          month_year: monthYear
+          month_year: monthYear,
+          state: state,
+          manual_units_input: !!manualUnits
         });
 
       if (insertError) throw insertError;
@@ -136,11 +168,13 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
 
       toast({
         title: "Success!",
-        description: `Bill processed! You earned ${pointsEarned} points. Carbon emissions: ${carbonEmissions.toFixed(2)} kg CO₂`
+        description: `Bill processed! You earned ${pointsEarned} points. Carbon emissions: ${carbonEmissions.toFixed(2)} kg CO₂ (${state})`
       });
 
       setFile(null);
       setMonthYear("");
+      setManualUnits("");
+      setState("India");
       fetchRecords();
       onStatsUpdate();
     } catch (error: any) {
@@ -182,22 +216,67 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="billFile">Upload Bill (PDF)</Label>
+              <Label htmlFor="state">Select Your State</Label>
+              <Select value={state} onValueChange={setState}>
+                <SelectTrigger id="state">
+                  <SelectValue placeholder="Select state" />
+                </SelectTrigger>
+                <SelectContent className="bg-background">
+                  {INDIAN_STATES.map((stateName) => (
+                    <SelectItem key={stateName} value={stateName}>
+                      {stateName}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                State-specific emission factors will be used for accurate calculations.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="billFile">Upload Bill (PDF/JPG/PNG)</Label>
               <Input
                 id="billFile"
                 type="file"
                 accept=".pdf,image/*"
                 onChange={handleFileChange}
-                required
               />
               <p className="text-xs text-muted-foreground">
-                Upload your electricity bill. We'll calculate carbon emissions automatically.
+                Upload your bill and we'll extract units automatically using OCR.
+              </p>
+            </div>
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-background px-2 text-muted-foreground">
+                  Or enter manually
+                </span>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="manualUnits">Units Consumed (kWh) - Optional</Label>
+              <Input
+                id="manualUnits"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Enter units if OCR fails"
+                value={manualUnits}
+                onChange={(e) => setManualUnits(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                If OCR fails to extract units, enter them manually here.
               </p>
             </div>
 
             <Button type="submit" className="w-full gradient-bg" disabled={loading}>
               <Upload className="h-4 w-4 mr-2" />
-              {loading ? "Processing..." : "Upload & Calculate"}
+              {loading ? "Processing..." : "Calculate Carbon Footprint"}
             </Button>
           </form>
 
@@ -234,6 +313,11 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
                       <p className="text-sm text-muted-foreground">
                         Units: {record.electricity_units} kWh
                       </p>
+                      {record.state && (
+                        <p className="text-xs text-muted-foreground">
+                          📍 {record.state}
+                        </p>
+                      )}
                     </div>
                     <div className="text-right">
                       <p className="text-sm font-semibold text-primary">
