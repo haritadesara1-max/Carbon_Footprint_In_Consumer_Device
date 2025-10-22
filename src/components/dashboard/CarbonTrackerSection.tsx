@@ -131,8 +131,8 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
         setLoading(false);
         toast({
           variant: "destructive",
-          title: "OCR Failed",
-          description: "Could not extract units from bill. Please upload a clearer image or try again."
+          title: "Unable to detect units",
+          description: "Please submit a clear image of your bill."
         });
         return;
       }

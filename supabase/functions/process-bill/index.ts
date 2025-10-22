@@ -19,23 +19,56 @@ const emissionFactors: Record<string, number> = {
   'India': 0.703
 };
 
-// Extract units from OCR text
+// Robust unit extraction from OCR text
 function extractUnitsFromText(text: string): number | null {
   if (!text) return null;
   
-  // Try multiple regex patterns to find units
-  const patterns = [
-    /(\d{1,3}(?:[,\.\s]\d{3})*(?:\.\d+)?)\s*kWh/i,
-    /units?\s*consumed?\s*:?\s*(\d{1,3}(?:[,\.\s]\d{3})*(?:\.\d+)?)/i,
-    /total\s*units?\s*:?\s*(\d{1,3}(?:[,\.\s]\d{3})*(?:\.\d+)?)/i,
-    /energy\s*consumed?\s*:?\s*(\d{1,3}(?:[,\.\s]\d{3})*(?:\.\d+)?)/i,
+  const normalizedText = text.replace(/,/g, '').toLowerCase();
+  
+  // Method 1: Look for explicit kWh/unit values
+  const kwhRegex = /(\d+(?:\.\d+)?)\s*(?:kwh|unit)/gi;
+  const matches: number[] = [];
+  let match;
+  
+  while ((match = kwhRegex.exec(normalizedText)) !== null) {
+    const value = parseFloat(match[1]);
+    if (value > 0 && value < 100000) { // reasonable range
+      matches.push(value);
+    }
+  }
+  
+  if (matches.length > 0) {
+    return Math.max(...matches); // return largest kWh value found
+  }
+  
+  // Method 2: Look for previous and current readings
+  const prevRegex = /previous\s*reading\s*[:\-]?\s*(\d+)/i;
+  const currRegex = /current\s*reading\s*[:\-]?\s*(\d+)/i;
+  const prevMatch = normalizedText.match(prevRegex);
+  const currMatch = normalizedText.match(currRegex);
+  
+  if (prevMatch && currMatch) {
+    const units = parseFloat(currMatch[1]) - parseFloat(prevMatch[1]);
+    if (units > 0 && units < 100000) {
+      return units;
+    }
+  }
+  
+  // Method 3: Fallback patterns for various bill formats
+  const fallbackPatterns = [
+    /units?\s*consumed?\s*:?\s*(\d+(?:\.\d+)?)/i,
+    /total\s*units?\s*:?\s*(\d+(?:\.\d+)?)/i,
+    /energy\s*consumed?\s*:?\s*(\d+(?:\.\d+)?)/i,
+    /consumption\s*:?\s*(\d+(?:\.\d+)?)/i,
   ];
   
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
+  for (const pattern of fallbackPatterns) {
+    const match = normalizedText.match(pattern);
     if (match) {
-      const value = match[1].replace(/[,\s]/g, '');
-      return parseFloat(value);
+      const value = parseFloat(match[1]);
+      if (value > 0 && value < 100000) {
+        return value;
+      }
     }
   }
   
@@ -79,7 +112,7 @@ serve(async (req) => {
               content: [
                 {
                   type: 'text',
-                  text: 'You are an expert at reading electricity bills. Look at this electricity bill image carefully and find the TOTAL electricity units consumed in kWh. Look for labels like "Units Consumed", "Total Units", "Energy Consumed", "kWh Used", or similar. The number is usually prominent and may have commas or spaces. Extract ONLY that number, nothing else. If you find it, respond with just the number (e.g., "450" or "1250.5"). If you cannot find it clearly, respond with "NOT_FOUND".'
+                  text: 'Extract all text from this electricity bill. Include all numbers, labels, and readings you can see. Pay special attention to: units consumed (kWh), current reading, previous reading, total units, energy consumption values. Return the complete text exactly as you see it on the bill.'
                 },
                 {
                   type: 'image_url',
