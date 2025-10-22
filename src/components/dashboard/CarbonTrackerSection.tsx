@@ -242,7 +242,7 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="billFile">Upload Bill (PDF/JPG/PNG)</Label>
+              <Label htmlFor="billFile">Upload Bill (image)</Label>
               <Input
                 id="billFile"
                 type="file"
