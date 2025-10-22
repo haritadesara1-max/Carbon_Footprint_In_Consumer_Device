@@ -33,6 +33,8 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
   const [monthYear, setMonthYear] = useState("");
   const [state, setState] = useState("India");
   const [manualUnits, setManualUnits] = useState("");
+  const [showManualInput, setShowManualInput] = useState(false);
+  const [ocrFailed, setOcrFailed] = useState(false);
 
   useEffect(() => {
     fetchRecords();
@@ -71,11 +73,21 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
       return;
     }
 
-    if (!file && !manualUnits) {
+    // If OCR failed and no manual units, require manual input
+    if (ocrFailed && !manualUnits) {
       toast({
         variant: "destructive",
         title: "Missing information",
-        description: "Please upload a bill or enter units manually."
+        description: "OCR failed. Please enter units manually."
+      });
+      return;
+    }
+
+    if (!file) {
+      toast({
+        variant: "destructive",
+        title: "Missing information",
+        description: "Please upload a bill."
       });
       return;
     }
@@ -100,25 +112,23 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
     try {
       let billUrl = '';
       
-      // Upload bill to storage if file provided
-      if (file) {
-        const fileName = `${user.id}/${Date.now()}_${file.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from('bills')
-          .upload(fileName, file);
+      // Upload bill to storage
+      const fileName = `${user.id}/${Date.now()}_${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('bills')
+        .upload(fileName, file);
 
-        if (uploadError) throw uploadError;
+      if (uploadError) throw uploadError;
 
-        // Get signed URL with 1 year expiration
-        const { data: signedData, error: signedError } = await supabase.storage
-          .from('bills')
-          .createSignedUrl(fileName, 31536000); // 1 year
+      // Get signed URL with 1 year expiration
+      const { data: signedData, error: signedError } = await supabase.storage
+        .from('bills')
+        .createSignedUrl(fileName, 31536000); // 1 year
 
-        if (signedError) throw signedError;
-        billUrl = signedData.signedUrl;
-      }
+      if (signedError) throw signedError;
+      billUrl = signedData.signedUrl;
 
-      // Process bill with edge function
+      // Process bill with edge function (try OCR first, then manual if provided)
       const { data, error: funcError } = await supabase.functions.invoke('process-bill', {
         body: { 
           billUrl, 
@@ -130,6 +140,19 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
 
       if (funcError) throw funcError;
 
+      // Check if OCR failed and we don't have manual units yet
+      if (!data.electricity_units && !manualUnits) {
+        setOcrFailed(true);
+        setShowManualInput(true);
+        setLoading(false);
+        toast({
+          variant: "destructive",
+          title: "OCR Failed",
+          description: "Could not extract units from bill. Please enter units manually below."
+        });
+        return;
+      }
+
       // Calculate points (less emission = more points)
       // Formula: Base 1000 points - (emissions * 10)
       const carbonEmissions = data.carbon_emissions || 0;
@@ -140,7 +163,7 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
         .from('carbon_tracking')
         .insert({
           user_id: user.id,
-          bill_url: billUrl || null,
+          bill_url: billUrl,
           electricity_units: data.electricity_units,
           carbon_emissions: carbonEmissions,
           points_earned: pointsEarned,
@@ -175,6 +198,8 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
       setMonthYear("");
       setManualUnits("");
       setState("India");
+      setShowManualInput(false);
+      setOcrFailed(false);
       fetchRecords();
       onStatsUpdate();
     } catch (error: any) {
@@ -241,38 +266,47 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
                 type="file"
                 accept=".pdf,image/*"
                 onChange={handleFileChange}
+                required
               />
               <p className="text-xs text-muted-foreground">
                 Upload your bill and we'll extract units automatically using OCR.
               </p>
             </div>
 
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-background px-2 text-muted-foreground">
-                  Or enter manually
-                </span>
-              </div>
-            </div>
+            {showManualInput && (
+              <>
+                <div className="relative">
+                  <div className="absolute inset-0 flex items-center">
+                    <span className="w-full border-t border-destructive" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-background px-2 text-destructive font-semibold">
+                      OCR Failed - Enter Manually
+                    </span>
+                  </div>
+                </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="manualUnits">Units Consumed (kWh) - Optional</Label>
-              <Input
-                id="manualUnits"
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="Enter units if OCR fails"
-                value={manualUnits}
-                onChange={(e) => setManualUnits(e.target.value)}
-              />
-              <p className="text-xs text-muted-foreground">
-                If OCR fails to extract units, enter them manually here.
-              </p>
-            </div>
+                <div className="space-y-2">
+                  <Label htmlFor="manualUnits" className="text-destructive">
+                    Units Consumed (kWh) - Required
+                  </Label>
+                  <Input
+                    id="manualUnits"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    placeholder="Enter units consumed"
+                    value={manualUnits}
+                    onChange={(e) => setManualUnits(e.target.value)}
+                    required
+                    className="border-destructive focus:border-destructive"
+                  />
+                  <p className="text-xs text-destructive">
+                    OCR could not extract units from your bill. Please enter them manually.
+                  </p>
+                </div>
+              </>
+            )}
 
             <Button type="submit" className="w-full gradient-bg" disabled={loading}>
               <Upload className="h-4 w-4 mr-2" />
