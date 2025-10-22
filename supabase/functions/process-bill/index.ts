@@ -57,16 +57,16 @@ serve(async (req) => {
       );
     }
 
-    const { billUrl, monthYear, state, manualUnits } = await req.json();
+    const { billUrl, monthYear, state } = await req.json();
     
-    let electricityUnits = manualUnits;
+    let electricityUnits = null;
     let ocrText = '';
     
-    // If no manual units provided, try OCR
-    if (!electricityUnits && billUrl) {
+    // Try OCR with enhanced prompt
+    if (billUrl) {
       try {
         // Use Lovable AI for OCR (Vision capability)
-        const aiResponse = await fetch('https://api.lovable.app/v1/ai/chat', {
+        const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -79,7 +79,7 @@ serve(async (req) => {
               content: [
                 {
                   type: 'text',
-                  text: 'Extract the electricity units consumed (in kWh) from this electricity bill. Return ONLY the number, nothing else.'
+                  text: 'You are an expert at reading electricity bills. Look at this electricity bill image carefully and find the TOTAL electricity units consumed in kWh. Look for labels like "Units Consumed", "Total Units", "Energy Consumed", "kWh Used", or similar. The number is usually prominent and may have commas or spaces. Extract ONLY that number, nothing else. If you find it, respond with just the number (e.g., "450" or "1250.5"). If you cannot find it clearly, respond with "NOT_FOUND".'
                 },
                 {
                   type: 'image_url',
@@ -93,21 +93,21 @@ serve(async (req) => {
         if (aiResponse.ok) {
           const aiData = await aiResponse.json();
           ocrText = aiData.choices?.[0]?.message?.content || '';
-          electricityUnits = extractUnitsFromText(ocrText);
+          console.log('OCR Response:', ocrText);
+          
+          // Try to extract units from response
+          if (ocrText && ocrText.trim() !== 'NOT_FOUND') {
+            electricityUnits = extractUnitsFromText(ocrText);
+          }
         }
       } catch (ocrError) {
         console.error('OCR failed:', ocrError);
       }
     }
     
-    // Fallback to demo value if OCR fails
-    if (!electricityUnits) {
-      electricityUnits = Math.floor(Math.random() * 500) + 200;
-    }
-    
     // Calculate carbon emissions using state-specific factor
     const emissionFactor = emissionFactors[state] || emissionFactors['India'];
-    const carbonEmissions = electricityUnits * emissionFactor;
+    const carbonEmissions = electricityUnits ? electricityUnits * emissionFactor : null;
     
     return new Response(
       JSON.stringify({ 

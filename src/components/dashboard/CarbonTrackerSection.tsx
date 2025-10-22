@@ -16,7 +16,7 @@ const INDIAN_STATES = [
   'Karnataka', 'Kerala', 'Madhya Pradesh', 'Maharashtra', 'Manipur',
   'Meghalaya', 'Mizoram', 'Nagaland', 'Odisha', 'Punjab',
   'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana', 'Tripura',
-  'Uttar Pradesh', 'Uttarakhand', 'West Bengal', 'India'
+  'Uttar Pradesh', 'Uttarakhand', 'West Bengal'
 ];
 
 interface CarbonTrackerSectionProps {
@@ -31,10 +31,7 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
   const [loading, setLoading] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [monthYear, setMonthYear] = useState("");
-  const [state, setState] = useState("India");
-  const [manualUnits, setManualUnits] = useState("");
-  const [showManualInput, setShowManualInput] = useState(false);
-  const [ocrFailed, setOcrFailed] = useState(false);
+  const [state, setState] = useState("Andhra Pradesh");
 
   useEffect(() => {
     fetchRecords();
@@ -69,16 +66,6 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
         variant: "destructive",
         title: "Missing information",
         description: "Please log in to continue."
-      });
-      return;
-    }
-
-    // If OCR failed and no manual units, require manual input
-    if (ocrFailed && !manualUnits) {
-      toast({
-        variant: "destructive",
-        title: "Missing information",
-        description: "OCR failed. Please enter units manually."
       });
       return;
     }
@@ -128,37 +115,35 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
       if (signedError) throw signedError;
       billUrl = signedData.signedUrl;
 
-      // Process bill with edge function (try OCR first, then manual if provided)
+      // Process bill with edge function
       const { data, error: funcError } = await supabase.functions.invoke('process-bill', {
         body: { 
           billUrl, 
           monthYear,
-          state,
-          manualUnits: manualUnits ? parseFloat(manualUnits) : null
+          state
         }
       });
 
       if (funcError) throw funcError;
 
-      // Check if OCR failed and we don't have manual units yet
-      if (!data.electricity_units && !manualUnits) {
-        setOcrFailed(true);
-        setShowManualInput(true);
+      // Check if OCR failed
+      if (!data.electricity_units) {
         setLoading(false);
         toast({
           variant: "destructive",
           title: "OCR Failed",
-          description: "Could not extract units from bill. Please enter units manually below."
+          description: "Could not extract units from bill. Please upload a clearer image or try again."
         });
         return;
       }
 
-      // Calculate points (less emission = more points)
-      // Formula: Base 1000 points - (emissions * 10)
-      const carbonEmissions = data.carbon_emissions || 0;
-      const pointsEarned = Math.max(100, Math.floor(1000 - (carbonEmissions * 10)));
+      // Calculate points - lower consumption = more points
+      // Formula: 2000 points for very low usage, decreasing as consumption increases
+      const electricityUnits = data.electricity_units || 0;
+      const pointsEarned = Math.floor(2000 - (electricityUnits * 2));
 
       // Insert tracking record
+      const carbonEmissions = data.carbon_emissions || 0;
       const { error: insertError } = await supabase
         .from('carbon_tracking')
         .insert({
@@ -169,7 +154,7 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
           points_earned: pointsEarned,
           month_year: monthYear,
           state: state,
-          manual_units_input: !!manualUnits
+          manual_units_input: false
         });
 
       if (insertError) throw insertError;
@@ -196,10 +181,7 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
 
       setFile(null);
       setMonthYear("");
-      setManualUnits("");
-      setState("India");
-      setShowManualInput(false);
-      setOcrFailed(false);
+      setState("Andhra Pradesh");
       fetchRecords();
       onStatsUpdate();
     } catch (error: any) {
@@ -273,41 +255,6 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
               </p>
             </div>
 
-            {showManualInput && (
-              <>
-                <div className="relative">
-                  <div className="absolute inset-0 flex items-center">
-                    <span className="w-full border-t border-destructive" />
-                  </div>
-                  <div className="relative flex justify-center text-xs uppercase">
-                    <span className="bg-background px-2 text-destructive font-semibold">
-                      OCR Failed - Enter Manually
-                    </span>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="manualUnits" className="text-destructive">
-                    Units Consumed (kWh) - Required
-                  </Label>
-                  <Input
-                    id="manualUnits"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    placeholder="Enter units consumed"
-                    value={manualUnits}
-                    onChange={(e) => setManualUnits(e.target.value)}
-                    required
-                    className="border-destructive focus:border-destructive"
-                  />
-                  <p className="text-xs text-destructive">
-                    OCR could not extract units from your bill. Please enter them manually.
-                  </p>
-                </div>
-              </>
-            )}
-
             <Button type="submit" className="w-full gradient-bg" disabled={loading}>
               <Upload className="h-4 w-4 mr-2" />
               {loading ? "Processing..." : "Calculate Carbon Footprint"}
@@ -320,8 +267,7 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
               <div className="flex-1">
                 <h4 className="font-semibold text-sm mb-1">Points System</h4>
                 <p className="text-xs text-muted-foreground">
-                  Lower emissions = More points! Start with 1000 points base, minus 10 points per kg CO₂ emitted. 
-                  Minimum 100 points per bill.
+                  Lower consumption = More points! You earn 2000 points minus 2 points per kWh consumed.
                 </p>
               </div>
             </div>
