@@ -92,6 +92,28 @@ serve(async (req) => {
 
     const { billUrl, monthYear, state } = await req.json();
     
+    // Input validation
+    if (!state || !emissionFactors[state]) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid state. Please select a valid state.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (!monthYear || !/^\d{4}-\d{2}$/.test(monthYear)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid month/year format. Use YYYY-MM.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    if (billUrl && !billUrl.includes('twodaitslnrgivtrlfxy.supabase.co/storage')) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid bill URL.' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+    
     let electricityUnits = null;
     let ocrText = '';
     

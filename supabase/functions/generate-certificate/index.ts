@@ -32,12 +32,36 @@ serve(async (req) => {
       }
     );
 
+    // Get authenticated user
+    const { data: { user }, error: userError } = await supabase.auth.getUser();
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: 'Unauthorized' }),
+        { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Get request details
-    const { data: request } = await supabase
+    const { data: request, error: requestError } = await supabase
       .from('ewaste_requests')
       .select('*, profiles(*)')
       .eq('id', requestId)
       .single();
+
+    if (requestError || !request) {
+      return new Response(
+        JSON.stringify({ error: 'Request not found' }),
+        { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
+    // Verify the authenticated user owns this request
+    if (request.user_id !== user.id) {
+      return new Response(
+        JSON.stringify({ error: 'Forbidden: You can only generate certificates for your own requests' }),
+        { status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
 
     // Generate certificate URL (simplified - in production, use a PDF library)
     const certificateUrl = `https://certificates.carbontrackr.com/${requestId}.pdf`;
