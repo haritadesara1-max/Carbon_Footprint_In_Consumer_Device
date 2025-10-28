@@ -82,20 +82,12 @@ serve(async (req) => {
         reference_id: requestId
       });
 
-    // Update user stats
-    const { data: stats } = await supabase
-      .from('user_points')
-      .select('*')
-      .eq('user_id', request.user_id)
-      .single();
-
-    await supabase
-      .from('user_points')
-      .update({
-        pickups_completed: (stats?.pickups_completed || 0) + 1,
-        certificates_earned: (stats?.certificates_earned || 0) + 1
-      })
-      .eq('user_id', request.user_id);
+    // Update user stats atomically to prevent race conditions
+    await supabase.rpc('increment_user_points', {
+      p_user_id: request.user_id,
+      p_pickups_delta: 1,
+      p_certs_delta: 1
+    });
 
     return new Response(
       JSON.stringify({ success: true, certificateUrl }),

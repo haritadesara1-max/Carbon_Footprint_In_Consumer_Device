@@ -138,21 +138,17 @@ const EWasteSection = ({ isMNC, onStatsUpdate }: EWasteSectionProps) => {
         description: "Failed to generate certificate."
       });
     } else {
-      // Update user points
-      const { data: currentPoints } = await supabase
-        .from('user_points')
-        .select('total_points, pickups_completed, certificates_earned')
-        .eq('user_id', user!.id)
-        .single();
+      // Update user points atomically to prevent race conditions
+      const { error: pointsError } = await supabase.rpc('increment_user_points', {
+        p_user_id: user!.id,
+        p_points_delta: pointsEarned,
+        p_pickups_delta: 1,
+        p_certs_delta: 1
+      });
 
-      await supabase
-        .from('user_points')
-        .update({
-          total_points: (currentPoints?.total_points || 0) + pointsEarned,
-          pickups_completed: (currentPoints?.pickups_completed || 0) + 1,
-          certificates_earned: (currentPoints?.certificates_earned || 0) + 1
-        })
-        .eq('user_id', user!.id);
+      if (pointsError) {
+        console.error('Error updating points:', pointsError);
+      }
 
       toast({
         title: "Certificate generated!",

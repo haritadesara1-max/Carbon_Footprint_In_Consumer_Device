@@ -260,7 +260,16 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      increment_user_points: {
+        Args: {
+          p_carbon_delta?: number
+          p_certs_delta?: number
+          p_pickups_delta?: number
+          p_points_delta?: number
+          p_user_id: string
+        }
+        Returns: undefined
+      }
     }
     Enums: {
       ewaste_status: "pending" | "completed"

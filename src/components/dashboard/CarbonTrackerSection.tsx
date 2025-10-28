@@ -107,10 +107,10 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
 
       if (uploadError) throw uploadError;
 
-      // Get signed URL with 1 year expiration
+      // Get signed URL with 24 hour expiration for security
       const { data: signedData, error: signedError } = await supabase.storage
         .from('bills')
-        .createSignedUrl(fileName, 31536000); // 1 year
+        .createSignedUrl(fileName, 86400); // 24 hours
 
       if (signedError) throw signedError;
       billUrl = signedData.signedUrl;
@@ -139,8 +139,9 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
 
       // Calculate points - lower consumption = more points
       // Formula: 2000 points for very low usage, decreasing as consumption increases
+      // Ensure points never go negative
       const electricityUnits = data.electricity_units || 0;
-      const pointsEarned = Math.floor(2000 - (electricityUnits * 2));
+      const pointsEarned = Math.max(0, Math.floor(2000 - (electricityUnits * 2)));
 
       // Insert tracking record
       const carbonEmissions = data.carbon_emissions || 0;
@@ -159,20 +160,16 @@ const CarbonTrackerSection = ({ isMNC, onStatsUpdate }: CarbonTrackerSectionProp
 
       if (insertError) throw insertError;
 
-      // Update user points
-      const { data: currentPoints } = await supabase
-        .from('user_points')
-        .select('total_points, carbon_saved')
-        .eq('user_id', user.id)
-        .single();
+      // Update user points atomically to prevent race conditions
+      const { error: pointsError } = await supabase.rpc('increment_user_points', {
+        p_user_id: user.id,
+        p_points_delta: pointsEarned,
+        p_carbon_delta: carbonEmissions
+      });
 
-      await supabase
-        .from('user_points')
-        .update({
-          total_points: (currentPoints?.total_points || 0) + pointsEarned,
-          carbon_saved: (currentPoints?.carbon_saved || 0) + carbonEmissions
-        })
-        .eq('user_id', user.id);
+      if (pointsError) {
+        console.error('Error updating points:', pointsError);
+      }
 
       toast({
         title: "Success!",
