@@ -64,7 +64,7 @@ Since Carbon Trackr is not yet deployed, follow these steps to run it locally:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/your-username/carbon-trackr.git
+git clone https://github.com/haritadesara1-max/carbon-trackr.git
 
 # 2. Navigate to the project folder
 cd carbon-trackr
