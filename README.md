@@ -64,10 +64,10 @@ Since Carbon Trackr is not yet deployed, follow these steps to run it locally:
 
 ```bash
 # 1. Clone the repository
-git clone https://github.com/haritadesara1-max/carbon-trackr.git
+git clone https://github.com/haritadesara1-max/Carbon_Footprint_In_Consumer_Device.git
 
 # 2. Navigate to the project folder
-cd carbon-trackr
+cd Carbon_Footprint_In_Consumer_Device
 
 # 3. Install dependencies
 npm install
