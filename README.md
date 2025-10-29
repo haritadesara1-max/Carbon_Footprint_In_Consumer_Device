@@ -1,7 +1,7 @@
 # 🌿 Carbon Trackr – AI-Powered Carbon Footprint & E-Waste Management System
 
 ## 📘 Overview
-**Carbon Trackr** is an AI-driven web application developed by **Team Syntax Squad** from **Pandit Deendayal Energy University (PDEU), Gujarat**, for **HackX 2025**.  
+**Carbon Trackr** is an AI-driven web application developed by **Team Syntax Squad** from **Pandit Deendayal Energy University (PDEU), Gujarat**, for **HackX 2025** organised by **Nirma University**.  
 The system enables both **individual users** and **MNCs** to monitor, reduce, and report their **carbon footprint** while responsibly managing **e-waste**.  
 It integrates **OCR technology**, **AI chatbot assistance**, and **gamification** to make sustainability measurable, engaging, and actionable.
 
